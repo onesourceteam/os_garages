@@ -19,9 +19,9 @@ vRP._prepare("os_garages/rem_srv_data","DELETE FROM vrp_srv_data WHERE dkey = @d
 vRP._prepare("os_garages/get_estoque","SELECT * FROM vrp_estoque WHERE vehicle = @vehicle")
 vRP._prepare("os_garages/set_estoque","UPDATE vrp_estoque SET quantidade = @quantidade WHERE vehicle = @vehicle")
 
-local police = {}
-local vehlist = {}
-local trydoors = {}
+local PoliceAlerts = {}
+local VehicleList = {}
+local TryDoors = {}
 
 -----------------------------------------------------------------------------------------------------------------------------------------
 -- FUNCTIONS
@@ -86,15 +86,13 @@ function vFunc.spawnVehicles(name,use)
 					if Config.Garages[use].payment then
 						if vRP.vehicleType(name) == "exclusive" or vRP.vehicleType(name) == "rental" then
 							local spawnveh,vehid = vClient.spawnVehicle(source,name,vehicle[1].engine,vehicle[1].body,vehicle[1].fuel,custom)
-							vehlist[vehid] = { user_id,name }
-							TriggerEvent("setPlateEveryone",identity.registration)
+							VehicleList[vehid] = { user_id,name }
 							TriggerClientEvent("Notify",source,"sucesso","Veículo <b>Exclusivo ou Alugado</b>, Não será cobrado a taxa de liberação.",3000)
 						end
 						if (vRP.getBankMoney(user_id) + vRP.getMoney(user_id)) >= vRP.vehiclePrice(name) * 0.005 and not vRP.vehicleType(name) == "exclusive" or vRP.vehicleType(name) == "rental" then
 							local spawnveh,vehid = vClient.spawnVehicle(source,name,vehicle[1].engine,vehicle[1].body,vehicle[1].fuel,custom)
 							if spawnveh and vRP.tryFullPayment(user_id,vRP.vehiclePrice(name) * 0.005) then
-								vehlist[vehid] = { user_id,name }
-								TriggerEvent("setPlateEveryone",identity.registration)
+								VehicleList[vehid] = { user_id,name }
 								TriggerClientEvent("Notify",source,"financeiro","Você pagou <b>$"..vRP.vehiclePrice(name)*0.005.." dólares</b>, da taxa de liberação.",3000)
 							end
 						else
@@ -103,8 +101,7 @@ function vFunc.spawnVehicles(name,use)
 					else
 						local spawnveh,vehid = vClient.spawnVehicle(source,name,vehicle[1].engine,vehicle[1].body,vehicle[1].fuel,custom,parseInt(vehicle[1].colorR),parseInt(vehicle[1].colorG),parseInt(vehicle[1].colorB),parseInt(vehicle[1].color2R),parseInt(vehicle[1].color2G),parseInt(vehicle[1].color2B),false)
 						if spawnveh then
-							vehlist[vehid] = { user_id,name }
-							TriggerEvent("setPlateEveryone",identity.registration)
+							VehicleList[vehid] = { user_id,name }
 						end
 					end
 				else
@@ -138,8 +135,7 @@ function vFunc.spawnVehicles(name,use)
 		else
 			local spawnveh,vehid = vClient.spawnVehicle(source,name,1000,1000,100,custom,0,0,0,0,0,0,true)
 			if spawnveh then
-				vehlist[vehid] = { user_id,name }
-				TriggerEvent("setPlateEveryone",identity.registration)
+				VehicleList[vehid] = { user_id,name }
 			end
 		end
 	else
@@ -184,9 +180,9 @@ function vFunc.vehicleLock()
 end
 
 function vFunc.tryDelete(vehid,vehengine,vehbody,vehfuel)
-	if vehlist[vehid] and vehid ~= 0 then
-		local user_id = vehlist[vehid][1]
-		local vehname = vehlist[vehid][2]
+	if VehicleList[vehid] and vehid ~= 0 then
+		local user_id = VehicleList[vehid][1]
+		local vehname = VehicleList[vehid][2]
 		local player = vRP.getUserSource(user_id)
 		if player then
 			vClient.syncNameDelete(player,vehname)
@@ -252,21 +248,19 @@ function vFunc.policeAlert()
 
 	local vehicle,vnetid,placa,vname,lock,banned,trunk,model,street = vRPclient.vehList(source,7)
 	if vehicle then
-		if math.random(100) >= 50 then
-			local policia = vRP.getUsersByPermission("policia.permissao")
-			local coords = GetEntityCoords(ped)
-			for k,v in pairs(policia) do
-				local player = vRP.getUserSource(v)
-				if player then
-					async(function()
-						local id = #police + 1
-						TriggerClientEvent('chatMessage',player,"911",{64,64,255},"Roubo na ^1"..street.."^0 do veículo ^1"..model.."^0 de placa ^1"..placa.."^0 verifique o ocorrido.")
-						police[id] = vRPclient.addBlip(player,coords.x,coords.y,coords.z,304,3,"Ocorrência",0.6,false)
-						SetTimeout(60000,function() 
-							vRPclient.removeBlip(player,police[id])
-						end)
+		local policia = vRP.getUsersByPermission("policia.permissao")
+		local coords = GetEntityCoords(ped)
+		for k,v in pairs(policia) do
+			local player = vRP.getUserSource(v)
+			if player then
+				async(function()
+					local id = #PoliceAlerts + 1
+					TriggerClientEvent('chatMessage',player,"911",{64,64,255},"Roubo na ^1"..street.."^0 do veículo ^1"..model.."^0 de placa ^1"..placa.."^0 verifique o ocorrido.")
+					PoliceAlerts[id] = vRPclient.addBlip(player,coords.x,coords.y,coords.z,304,3,"Ocorrência",0.6,false)
+					SetTimeout(60000,function() 
+						vRPclient.removeBlip(player,PoliceAlerts[id])
 					end)
-				end
+				end)
 			end
 		end
 	end
@@ -280,66 +274,69 @@ RegisterCommand('vehs',function(source,args)
 	local user_id = vRP.getUserId(source)
 	local nuser_id = tonumber(args[2])
 
-	if args[1] and nuser_id > 0 then
+	local vehicleName = vRP.vehicleName(args[1])
+
+	if args[1] then
 		local nplayer = vRP.getUserSource(nuser_id)
-		local myvehicles = vRP.query("os_garages/get_vehicles",{ user_id = user_id, vehicle = args[1] })
-		if myvehicles[1] then
-			if vRP.vehicleType(args[1]) == "exclusive" or vRP.vehicleType(args[1]) == "rental" and not vRP.hasPermission(user_id,"admin.permissao") then
-				TriggerClientEvent("Notify",source,"negado","<b>"..vRP.vehicleName(args[1]).."</b> não pode ser transferido por ser um veículo <b>Exclusivo ou Alugado</b>.",3000)
-			else
-				local identity = vRP.getUserIdentity(nuser_id)
-				local identity2 = vRP.getUserIdentity(user_id)
-				local price = tonumber(vRP.prompt(source,"Valor:",""))
-				local requestSell = vRP.request(source,"Deseja vender um <b>"..vRP.vehicleName(args[1]).."</b> para <b>"..identity.name.." "..identity.firstname.."</b> por <b>$"..price.."</b> dólares ?",30)
-				if requestSell then	
-					local requestBuy = vRP.request(nplayer,"Aceita comprar um <b>"..vRP.vehicleName(args[1]).."</b> de <b>"..identity2.name.." "..identity2.firstname.."</b> por <b>$"..price.."</b> dólares ?",30)
-					if requestBuy then
-						local vehicle = vRP.query("os_garages/get_vehicles",{ user_id = nuser_id, vehicle = args[1] })
-						if price > 0 then
-							if vRP.tryFullPayment(nuser_id,price) then
-								if vehicle[1] then
-									TriggerClientEvent("Notify",source,"negado", "<b>"..identity.name.." "..identity.firstname.."</b> já possui este modelo de veículo.",3000)
+		if nplayer then
+			local myvehicles = vRP.query("os_garages/get_vehicles",{ user_id = user_id, vehicle = args[1] })
+			if myvehicles[1] then
+				if vRP.vehicleType(args[1]) == "exclusive" or vRP.vehicleType(args[1]) == "rental" and not vRP.hasPermission(user_id,"admin.permissao") then
+					TriggerClientEvent("Notify",source,"negado","<b>"..vehicleName.."</b> não pode ser transferido por ser um veículo <b>Exclusivo ou Alugado</b>.",3000)
+				else
+					local identity = vRP.getUserIdentity(nuser_id)
+					local nIdentity = vRP.getUserIdentity(user_id)
+					local price = tonumber(vRP.prompt(source,"Valor:",""))
+					local requestSell = vRP.request(source,"Deseja vender um "..vehicleName.." para "..identity.name.." "..identity.firstname.." por $"..price.." dólares ?",30)
+					if requestSell then	
+						local requestBuy = vRP.request(nplayer,"Aceita comprar um "..vehicleName.." de "..nIdentity.name.." "..nIdentity.firstname.." por $"..price.." dólares ?",30)
+						if requestBuy then
+							local vehicle = vRP.query("os_garages/get_vehicles",{ user_id = nuser_id, vehicle = args[1] })
+							if price > 0 then
+								if vRP.tryFullPayment(nuser_id,price) then
+									if vehicle[1] then
+										TriggerClientEvent("Notify",source,"negado", identity.name.." "..identity.firstname.." já possui este modelo de veículo.",3000)
+									else
+										vRP.execute("os_garages/move_vehicle",{ user_id = user_id, nuser_id = nuser_id, vehicle = args[1] })
+										local custom = json.decode(vRP.getSData("custom:u"..user_id.."veh_"..args[1]))
+										if custom then
+											vRP.setSData("custom:u"..nuser_id.."veh_"..args[1],json.encode(custom))
+											vRP.execute("os_garages/rem_srv_data",{ dkey = "custom:u"..user_id.."veh_"..args[1] })
+										end
+										local chest = json.decode(vRP.getSData("chest:u"..user_id.."veh_"..args[1]))
+										if chest then
+											vRP.setSData("chest:u"..nuser_id.."veh_"..args[1],json.encode(chest))
+											vRP.execute("os_garages/rem_srv_data",{ dkey = "chest:u"..user_id.."veh_"..args[1] })
+										end
+
+										TriggerClientEvent("Notify",source,"sucesso","Você vendeu "..vehicleName.." e recebeu $"..price.." dólares.",3000)
+										TriggerClientEvent("Notify",nplayer,"importante","Você recebeu as chaves do veículo "..vehicleName.." de "..nIdentity.name.." "..nIdentity.firstname.." e pagou $"..price.." dólares.",3000)
+
+										vRPclient.playSound(source,"Hack_Success","DLC_HEIST_BIOLAB_PREP_HACKING_SOUNDS")
+										vRPclient.playSound(nplayer,"Hack_Success","DLC_HEIST_BIOLAB_PREP_HACKING_SOUNDS")
+
+										local bankMoney = vRP.getBankMoney(user_id)
+										vRP.setBankMoney(user_id, bankMoney + price)
+									end
 								else
-									vRP.execute("os_garages/move_vehicle",{ user_id = user_id, nuser_id = nuser_id, vehicle = args[1] })
-									local custom = json.decode(vRP.getSData("custom:u"..user_id.."veh_"..args[1]))
-									if custom then
-										vRP.setSData("custom:u"..nuser_id.."veh_"..args[1],json.encode(custom))
-										vRP.execute("os_garages/rem_srv_data",{ dkey = "custom:u"..user_id.."veh_"..args[1] })
-									end
-									local chest = json.decode(vRP.getSData("chest:u"..user_id.."veh_"..args[1]))
-									if chest then
-										vRP.setSData("chest:u"..nuser_id.."veh_"..args[1],json.encode(chest))
-										vRP.execute("os_garages/rem_srv_data",{ dkey = "chest:u"..user_id.."veh_"..args[1] })
-									end
-
-									TriggerClientEvent("Notify",source,"sucesso","Você Vendeu <b>"..vRP.vehicleName(args[1]).."</b> e Recebeu <b>$"..price.."</b> dólares.",3000)
-									TriggerClientEvent("Notify",nplayer,"importante","Você recebeu as chaves do veículo <b>"..vRP.vehicleName(args[1]).."</b> de <b>"..identity2.name.." "..identity2.firstname.."</b> e pagou <b>$"..price.."</b> dólares.",3000)
-
-									vRPclient.playSound(source,"Hack_Success","DLC_HEIST_BIOLAB_PREP_HACKING_SOUNDS")
-									vRPclient.playSound(nplayer,"Hack_Success","DLC_HEIST_BIOLAB_PREP_HACKING_SOUNDS")
-
-									local bankMoney = vRP.getBankMoney(user_id)
-									vRP.setBankMoney(user_id, bankMoney + price)
-								end
-							else
-								TriggerClientEvent("Notify",nplayer,"negado","Dinheiro insuficiente.",3000)
-								TriggerClientEvent("Notify",source,"negado","Dinheiro insuficiente.",3000)
-							end	
+									TriggerClientEvent("Notify",nplayer,"negado","Dinheiro insuficiente.",3000)
+									TriggerClientEvent("Notify",source,"negado","Dinheiro insuficiente.",3000)
+								end	
+							end
 						end
 					end
 				end
-			end
-		else
-			local vehicle = vRP.query("os_garages/get_vehicle",{ user_id = user_id })
-			if #vehicle > 0 then 
-	            local car_names = {}
-	            for k,v in pairs(vehicle) do
-	            	table.insert(car_names, "<b>" .. vRP.vehicleName(v.vehicle) .. "</b> ("..v.vehicle..")")
-	            end
-	            car_names = table.concat(car_names, ", ")
-	            TriggerClientEvent("Notify",source,"importante","Seus veículos: " .. car_names,3000)
-			else 
-				TriggerClientEvent("Notify",source,"importante","Você não possui nenhum veículo.",3000)
+			else
+				local vehicle = vRP.query("os_garages/get_vehicle",{ user_id = user_id })
+				if #vehicle > 0 then 
+	    	        local car_names = {}
+	    	        for k,v in pairs(vehicle) do
+	    	        	table.insert(car_names, vRP.vehicleName(v.vehicle).. " | "..v.vehicle.."\n")
+	    	        end
+	    	        TriggerClientEvent("Notify",source,"importante","Seus veículos: " .. car_names,3000)
+				else 
+					TriggerClientEvent("Notify",source,"importante","Você não possui nenhum veículo.",3000)
+				end
 			end
 		end
 	end
@@ -355,7 +352,6 @@ RegisterCommand('car',function(source,args,rawCommand)
 				local tuning = vRP.getSData("custom:u"..user_id.."veh_"..args[1]) or {}
 				local custom = json.decode(tuning) or {}
 				vClient.spawnVehicleAdmin(source,args[1],custom)
-				TriggerEvent("setPlateEveryone",identity.registration)
 			end
 		end
 	end
@@ -398,9 +394,4 @@ end)
 
 RegisterServerEvent("trymotor" ,function(nveh)
 	TriggerClientEvent("syncmotor",-1,nveh)
-end)
-
-RegisterServerEvent("setPlateEveryone")
-AddEventHandler("setPlateEveryone",function(placa)
-	trydoors[placa] = true
 end)
