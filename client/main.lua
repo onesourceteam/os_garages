@@ -220,15 +220,15 @@ function vFunc.spawnVehicleAdmin(vehName,custom)
 	SetPedIntoVehicle(ped, car, -1)
 end
 
-function vFunc.syncBlips(nveh,vehName)
-	if GetBlipFromEntity(nveh) == 0 then
-		vehicleBlips[vehName] = AddBlipForEntity(nveh)
+function vFunc.syncBlips(nVeh,vehName)
+	if GetBlipFromEntity(nVeh) == 0 then
+		vehicleBlips[vehName] = AddBlipForEntity(nVeh)
 		SetBlipSprite(vehicleBlips[vehName],433)
 		SetBlipAsShortRange(vehicleBlips[vehName],false)
 		SetBlipColour(vehicleBlips[vehName],80)
 		SetBlipScale(vehicleBlips[vehName],0.4)
 		BeginTextCommandSetBlipName("STRING")
-		AddTextComponentString("~q~Rastreador: ~g~"..GetDisplayNameFromVehicleModel(GetEntityModel(nveh)))
+		AddTextComponentString("Rastreador: "..GetDisplayNameFromVehicleModel(GetEntityModel(nVeh)))
 		EndTextCommandSetBlipName(vehicleBlips[vehName])
 	end
 end
