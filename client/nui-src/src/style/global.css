@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  outline: none;
+  overflow: hidden;
+  user-select: none;
+  box-sizing: border-box;
+  border: none;
+  transition: all ease 0.25s;
+  font-family: "Outfit", sans-serif;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-25%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
