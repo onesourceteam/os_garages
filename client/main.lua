@@ -10,7 +10,6 @@ local workgarage = ""
 local vehicle = {}
 local vehicleBlips = {}
 local pointSpawn = 1
-local gps = {}
 
 local Cooldown = GetGameTimer()
 
@@ -155,7 +154,7 @@ function vFunc.spawnVehicle(vehName,vehEngine,vehBody,vehFuel,custom)
 			while true do
 				local checkCoords = Config.Garages[pointSpawn].slots[checkSlot]
 				local checkPos = GetClosestVehicle(checkCoords.x,checkCoords.y,checkCoords.z,3.001,0,71)
-				if DoesEntityExist(checkPos) and checkPos then
+				if DoesEntityExist(checkPos) then
 					checkSlot = checkSlot + 1
 					if checkSlot > #Config.Garages[pointSpawn].slots then
 						checkSlot = -1
@@ -171,8 +170,6 @@ function vFunc.spawnVehicle(vehName,vehEngine,vehBody,vehFuel,custom)
 			if checkSlot ~= -1 then
 				local nveh = CreateVehicle(mhash,Config.Garages[pointSpawn].slots[checkSlot] + vec4(0,0,0.5,0),true,false)
 
-				SetVehicleIsStolen(nveh,false)
-				SetVehicleNeedsToBeHotwired(nveh,false)
 				SetVehicleOnGroundProperly(nveh)
 				SetVehicleNumberPlateText(nveh,vRP.getRegistrationNumber())
 				SetEntityAsMissionEntity(nveh,true,true)
@@ -190,9 +187,6 @@ function vFunc.spawnVehicle(vehName,vehEngine,vehBody,vehFuel,custom)
 				vFunc.syncBlips(nveh,vehName)
 
 				vehicle[vehName] = true
-				gps[vehName] = true
-
-				SetModelAsNoLongerNeeded(mhash)
 
 				return true, VehToNet(nveh)
 			end
@@ -212,10 +206,7 @@ function vFunc.spawnVehicleAdmin(vehName,custom)
 	end
 
 	local car = CreateVehicle(mhash,pedCoords + vec3(0,0,0.5),pedHeading,true,false)
-	ExecuteCommand("fix")
-	SetVehicleIsStolen(car,false)
-	SetVehicleNeedsToBeHotwired(car,false)
-	SetVehicleOnGroundProperly(car)
+
 	SetVehicleNumberPlateText(car,vRP.getRegistrationNumber())
 	SetEntityAsMissionEntity(car,true,true)
 	SetVehRadioStation(car,"OFF")
@@ -230,7 +221,7 @@ function vFunc.spawnVehicleAdmin(vehName,custom)
 end
 
 function vFunc.syncBlips(nveh,vehName)
-	if GetBlipFromEntity(nveh) == 0 and gps[vehName] then
+	if GetBlipFromEntity(nveh) == 0 then
 		vehicleBlips[vehName] = AddBlipForEntity(nveh)
 		SetBlipSprite(vehicleBlips[vehName],433)
 		SetBlipAsShortRange(vehicleBlips[vehName],false)
@@ -252,10 +243,8 @@ function vFunc.removeGpsVehicle(vehName)
 	if vehicle[vehName] then
 		RemoveBlip(vehicleBlips[vehName])
 		vehicleBlips[vehName] = nil
-		gps[vehName] = nil
 	end
 end
-
 
 function vFunc.syncNameDelete(vehName)
 	if vehicle[vehName] then
@@ -331,7 +320,7 @@ end)
 RegisterNUICallback('spawnVehicle',function(data)
     if Cooldown < GetGameTimer() then
         Cooldown = GetGameTimer() + 3000
-        vServer.spawnVehicles(data.vehicle.name,parseInt(pointSpawn))
+        vServer.spawnVehicles(data.vehicle.name,pointSpawn)
 	else
 		TriggerEvent("Notify","negado","Espere um pouco.",2000)
     end
